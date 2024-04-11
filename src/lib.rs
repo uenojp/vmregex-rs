@@ -68,6 +68,16 @@ pub fn parse(pattern: &str) -> Result<Ast, ParseError> {
     let mut ctx = Context::default();
     let mut escaping = false;
 
+    macro_rules! quantifier {
+        ($ctx:expr, $operator:expr) => {
+            if let Some(prev_ast) = $ctx.concat.pop() {
+                $ctx.concat.push($operator(Box::new(prev_ast)));
+            } else {
+                return Err(ParseError::MissingOperand);
+            }
+        };
+    }
+
     for c in pattern.chars() {
         if escaping {
             if matches!(c, '*' | '+' | '\\' | '?' | '(' | ')' | '|') {
@@ -88,9 +98,9 @@ pub fn parse(pattern: &str) -> Result<Ast, ParseError> {
                 // Append the left operand to `concat_or`.
                 append_concat(&mut ctx);
             }
-            '?' => todo!(),
-            '*' => todo!(),
-            '+' => todo!(),
+            '?' => quantifier!(ctx, Ast::Question),
+            '*' => quantifier!(ctx, Ast::Star),
+            '+' => quantifier!(ctx, Ast::Plus),
             '(' => {
                 let prev = (mem::take(&mut ctx.concat), mem::take(&mut ctx.concat_or));
                 ctx.stack.push(prev);
@@ -211,5 +221,25 @@ mod test {
         // Error
         assert_eq!(parse(r"\a"), Result::Err(ParseError::InvalidEscape('a')));
         assert_eq!(parse(r"a\bc"), Result::Err(ParseError::InvalidEscape('b')));
+    }
+
+    #[test]
+    fn question() {
+        let ast = Ast::Question(Ast::Char('a').into());
+        assert_eq!(parse("a?").unwrap(), ast);
+        let ast = Ast::Concat(vec![Ast::Question(Ast::Char('a').into()), Ast::Char('b')]);
+        assert_eq!(parse("a?b").unwrap(), ast);
+
+        let ast = Ast::Concat(vec![
+            Ast::Char('a'),
+            Ast::Question(Ast::Concat(vec![Ast::Char('b'), Ast::Char('c')]).into()),
+            Ast::Char('d'),
+            Ast::Char('e'),
+        ]);
+        assert_eq!(parse("a(bc)?de").unwrap(), ast);
+
+        // Error
+        assert_eq!(parse("?"), Result::Err(ParseError::MissingOperand));
+        assert_eq!(parse("?abc"), Result::Err(ParseError::MissingOperand));
     }
 }
