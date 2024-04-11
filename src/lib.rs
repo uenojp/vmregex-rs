@@ -20,6 +20,8 @@ pub enum ParseError {
     UnclosedParenthesis,
     #[error("unexpected parenthesis")]
     UnexpectedParenthesis,
+    #[error("invalid escape character {0}")]
+    InvalidEscape(char),
     #[error("empty expression")]
     Empty,
 }
@@ -64,8 +66,19 @@ struct Context {
 /// Parse a regular expression pattern into an abstraction syntax tree (AST).
 pub fn parse(pattern: &str) -> Result<Ast, ParseError> {
     let mut ctx = Context::default();
+    let mut escaping = false;
 
     for c in pattern.chars() {
+        if escaping {
+            if matches!(c, '*' | '+' | '\\' | '?' | '(' | ')' | '|') {
+                ctx.concat.push(Ast::Char(c));
+            } else {
+                return Err(ParseError::InvalidEscape(c));
+            }
+            escaping = false;
+            continue;
+        }
+
         match c {
             '|' => {
                 if ctx.concat.is_empty() {
@@ -102,6 +115,7 @@ pub fn parse(pattern: &str) -> Result<Ast, ParseError> {
                     return Err(ParseError::UnexpectedParenthesis);
                 }
             }
+            '\\' => escaping = true,
             _ => ctx.concat.push(Ast::Char(c)),
         }
     }
@@ -181,5 +195,21 @@ mod test {
 
         // Empty expression
         assert_eq!(parse("()"), Result::Err(ParseError::Empty));
+    }
+
+    #[test]
+    fn escape() {
+        let ast = Ast::Char('+');
+        assert_eq!(parse(r"\+").unwrap(), ast);
+
+        let ast = Ast::Concat(vec![Ast::Char('*'), Ast::Char('b'), Ast::Char('?')]);
+        assert_eq!(parse(r"\*b\?").unwrap(), ast);
+
+        let ast = Ast::Concat(vec![Ast::Char('\\'), Ast::Char('\\'), Ast::Char('\\')]);
+        assert_eq!(parse(r"\\\\\\").unwrap(), ast);
+
+        // Error
+        assert_eq!(parse(r"\a"), Result::Err(ParseError::InvalidEscape('a')));
+        assert_eq!(parse(r"a\bc"), Result::Err(ParseError::InvalidEscape('b')));
     }
 }
