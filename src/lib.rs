@@ -25,12 +25,12 @@ pub enum ParseError {
 }
 
 /// Extract `concat` as an operand of the Or operator and append it to `concat_or`.
-fn append_concat(concat: &mut Vec<Ast>, concat_or: &mut Vec<Ast>) {
-    if concat.len() == 1 {
-        let c = concat.pop().unwrap();
-        concat_or.push(c);
+fn append_concat(ctx: &mut Context) {
+    if ctx.concat.len() == 1 {
+        let c = ctx.concat.pop().unwrap();
+        ctx.concat_or.push(c);
     } else {
-        concat_or.push(Ast::Concat(mem::take(concat)));
+        ctx.concat_or.push(Ast::Concat(mem::take(&mut ctx.concat)));
     }
 }
 
@@ -53,70 +53,76 @@ fn or_ast(mut concat_or: Vec<Ast>) -> Option<Ast> {
     }
 }
 
+#[derive(Debug, Default)]
+struct Context {
+    concat: Vec<Ast>,
+    concat_or: Vec<Ast>,
+    // Stack that holds the previous context `(concat, concat_or)`.
+    stack: Vec<(Vec<Ast>, Vec<Ast>)>,
+}
+
 /// Parse a regular expression pattern into an abstraction syntax tree (AST).
 pub fn parse(pattern: &str) -> Result<Ast, ParseError> {
-    let mut concat = Vec::new();
-    let mut concat_or = Vec::new();
-    let mut stack = Vec::new();
+    let mut ctx = Context::default();
 
     for c in pattern.chars() {
         match c {
             '|' => {
-                if concat.is_empty() {
+                if ctx.concat.is_empty() {
                     return Err(ParseError::MissingOperand);
                 }
 
                 // Append the left operand to `concat_or`.
-                append_concat(&mut concat, &mut concat_or);
+                append_concat(&mut ctx);
             }
             '?' => todo!(),
             '*' => todo!(),
             '+' => todo!(),
             '(' => {
-                let prev = (mem::take(&mut concat), mem::take(&mut concat_or));
-                stack.push(prev);
+                let prev = (mem::take(&mut ctx.concat), mem::take(&mut ctx.concat_or));
+                ctx.stack.push(prev);
             }
             ')' => {
-                if let Some((mut prev_concat, prev_concat_or)) = stack.pop() {
+                if let Some((mut prev_concat, prev_concat_or)) = ctx.stack.pop() {
                     // Skip `()`.
-                    if concat.is_empty() {
+                    if ctx.concat.is_empty() {
                         continue;
                     }
 
                     // Construct the AST of the expression in parentheses.
-                    append_concat(&mut concat, &mut concat_or);
-                    if let Some(inner_ast) = or_ast(concat_or) {
+                    append_concat(&mut ctx);
+                    if let Some(inner_ast) = or_ast(ctx.concat_or) {
                         prev_concat.push(inner_ast);
                     }
 
-                    // Rewind the stack.
-                    concat = prev_concat;
-                    concat_or = prev_concat_or;
+                    // Rewind the context.
+                    ctx.concat = prev_concat;
+                    ctx.concat_or = prev_concat_or;
                 } else {
                     return Err(ParseError::UnexpectedParenthesis);
                 }
             }
-            _ => concat.push(Ast::Char(c)),
+            _ => ctx.concat.push(Ast::Char(c)),
         }
     }
 
     // Check if there are unclosed parentheses.
-    if !stack.is_empty() {
+    if !ctx.stack.is_empty() {
         return Err(ParseError::UnclosedParenthesis);
     }
 
     // Process the last operand.
-    if concat.is_empty() {
+    if ctx.concat.is_empty() {
         // Despite the presence of the Or operator, the right operand is missing.
-        if !concat_or.is_empty() {
+        if !ctx.concat_or.is_empty() {
             return Err(ParseError::MissingOperand);
         }
     } else {
         // After going through all characters, append the right(=last) operand to `concat_or`.
-        append_concat(&mut concat, &mut concat_or);
+        append_concat(&mut ctx);
     }
 
-    if let Some(ast) = or_ast(concat_or) {
+    if let Some(ast) = or_ast(ctx.concat_or) {
         Ok(ast)
     } else {
         Err(ParseError::Empty)
