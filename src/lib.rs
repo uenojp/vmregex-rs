@@ -69,9 +69,9 @@ pub fn parse(pattern: &str) -> Result<Ast, ParseError> {
     let mut escaping = false;
 
     macro_rules! quantifier {
-        ($ctx:expr, $operator:expr) => {
-            if let Some(prev_ast) = $ctx.concat.pop() {
-                $ctx.concat.push($operator(Box::new(prev_ast)));
+        ($operator:expr) => {
+            if let Some(prev_ast) = ctx.concat.pop() {
+                ctx.concat.push($operator(Box::new(prev_ast)));
             } else {
                 return Err(ParseError::MissingOperand);
             }
@@ -98,10 +98,11 @@ pub fn parse(pattern: &str) -> Result<Ast, ParseError> {
                 // Append the left operand to `concat_or`.
                 append_concat(&mut ctx);
             }
-            '?' => quantifier!(ctx, Ast::Question),
-            '*' => quantifier!(ctx, Ast::Star),
-            '+' => quantifier!(ctx, Ast::Plus),
+            '?' => quantifier!(Ast::Question),
+            '*' => quantifier!(Ast::Star),
+            '+' => quantifier!(Ast::Plus),
             '(' => {
+                // Epilogue: push the current context.
                 let prev = (mem::take(&mut ctx.concat), mem::take(&mut ctx.concat_or));
                 ctx.stack.push(prev);
             }
@@ -118,7 +119,7 @@ pub fn parse(pattern: &str) -> Result<Ast, ParseError> {
                         prev_concat.push(inner_ast);
                     }
 
-                    // Rewind the context.
+                    // Prologue: Rewind the context.
                     ctx.concat = prev_concat;
                     ctx.concat_or = prev_concat_or;
                 } else {
@@ -177,12 +178,12 @@ mod test {
         assert_eq!(parse("xyz|b|c").unwrap(), ast);
 
         // Error
-        assert_eq!(parse("|b"), Result::Err(ParseError::MissingOperand));
-        assert_eq!(parse("a|"), Result::Err(ParseError::MissingOperand));
-        assert_eq!(parse("|"), Result::Err(ParseError::MissingOperand));
+        assert_eq!(parse("|b"), Err(ParseError::MissingOperand));
+        assert_eq!(parse("a|"), Err(ParseError::MissingOperand));
+        assert_eq!(parse("|"), Err(ParseError::MissingOperand));
 
         // Empty expression
-        assert_eq!(parse(""), Result::Err(ParseError::Empty));
+        assert_eq!(parse(""), Err(ParseError::Empty));
     }
 
     #[test]
@@ -198,13 +199,13 @@ mod test {
         assert_eq!(parse("ab(cd|ef)").unwrap(), ast);
 
         // Error
-        assert_eq!(parse("(ab"), Result::Err(ParseError::UnclosedParenthesis));
-        assert_eq!(parse("ab)"), Result::Err(ParseError::UnexpectedParenthesis));
-        assert_eq!(parse("("), Result::Err(ParseError::UnclosedParenthesis));
-        assert_eq!(parse(")"), Result::Err(ParseError::UnexpectedParenthesis));
+        assert_eq!(parse("(ab"), Err(ParseError::UnclosedParenthesis));
+        assert_eq!(parse("ab)"), Err(ParseError::UnexpectedParenthesis));
+        assert_eq!(parse("("), Err(ParseError::UnclosedParenthesis));
+        assert_eq!(parse(")"), Err(ParseError::UnexpectedParenthesis));
 
         // Empty expression
-        assert_eq!(parse("()"), Result::Err(ParseError::Empty));
+        assert_eq!(parse("()"), Err(ParseError::Empty));
     }
 
     #[test]
@@ -219,8 +220,8 @@ mod test {
         assert_eq!(parse(r"\\\\\\").unwrap(), ast);
 
         // Error
-        assert_eq!(parse(r"\a"), Result::Err(ParseError::InvalidEscape('a')));
-        assert_eq!(parse(r"a\bc"), Result::Err(ParseError::InvalidEscape('b')));
+        assert_eq!(parse(r"\a"), Err(ParseError::InvalidEscape('a')));
+        assert_eq!(parse(r"a\bc"), Err(ParseError::InvalidEscape('b')));
     }
 
     #[test]
@@ -239,7 +240,7 @@ mod test {
         assert_eq!(parse("a(bc)?de").unwrap(), ast);
 
         // Error
-        assert_eq!(parse("?"), Result::Err(ParseError::MissingOperand));
-        assert_eq!(parse("?abc"), Result::Err(ParseError::MissingOperand));
+        assert_eq!(parse("?"), Err(ParseError::MissingOperand));
+        assert_eq!(parse("?abc"), Err(ParseError::MissingOperand));
     }
 }
