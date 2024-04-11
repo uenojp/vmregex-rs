@@ -16,6 +16,10 @@ pub enum Ast {
 pub enum ParseError {
     #[error("missing operand")]
     MissingOperand,
+    #[error("unclosed parenthesis")]
+    UnclosedParenthesis,
+    #[error("unexpected parenthesis")]
+    UnexpectedParenthesis,
     #[error("empty expression")]
     Empty,
 }
@@ -53,6 +57,7 @@ fn or_ast(mut concat_or: Vec<Ast>) -> Option<Ast> {
 pub fn parse(pattern: &str) -> Result<Ast, ParseError> {
     let mut concat = Vec::new();
     let mut concat_or = Vec::new();
+    let mut stack = Vec::new();
 
     for c in pattern.chars() {
         match c {
@@ -67,12 +72,40 @@ pub fn parse(pattern: &str) -> Result<Ast, ParseError> {
             '?' => todo!(),
             '*' => todo!(),
             '+' => todo!(),
-            '(' => todo!(),
-            ')' => todo!(),
+            '(' => {
+                let prev = (mem::take(&mut concat), mem::take(&mut concat_or));
+                stack.push(prev);
+            }
+            ')' => {
+                if let Some((mut prev_concat, prev_concat_or)) = stack.pop() {
+                    // Skip `()`.
+                    if concat.is_empty() {
+                        continue;
+                    }
+
+                    // Construct the AST of the expression in parentheses.
+                    append_concat(&mut concat, &mut concat_or);
+                    if let Some(inner_ast) = or_ast(concat_or) {
+                        prev_concat.push(inner_ast);
+                    }
+
+                    // Rewind the stack.
+                    concat = prev_concat;
+                    concat_or = prev_concat_or;
+                } else {
+                    return Err(ParseError::UnexpectedParenthesis);
+                }
+            }
             _ => concat.push(Ast::Char(c)),
         }
     }
 
+    // Check if there are unclosed parentheses.
+    if !stack.is_empty() {
+        return Err(ParseError::UnclosedParenthesis);
+    }
+
+    // Process the last operand.
     if concat.is_empty() {
         // Despite the presence of the Or operator, the right operand is missing.
         if !concat_or.is_empty() {
@@ -113,11 +146,34 @@ mod test {
         );
         assert_eq!(parse("xyz|b|c").unwrap(), ast);
 
+        // Error
         assert_eq!(parse("|b"), Result::Err(ParseError::MissingOperand));
         assert_eq!(parse("a|"), Result::Err(ParseError::MissingOperand));
         assert_eq!(parse("|"), Result::Err(ParseError::MissingOperand));
 
         // Empty expression
         assert_eq!(parse(""), Result::Err(ParseError::Empty));
+    }
+
+    #[test]
+    fn parenthesis() {
+        let ast = Ast::Concat(vec![
+            Ast::Char('a'),
+            Ast::Char('b'),
+            Ast::Or(
+                Ast::Concat(vec![Ast::Char('c'), Ast::Char('d')]).into(),
+                Ast::Concat(vec![Ast::Char('e'), Ast::Char('f')]).into(),
+            ),
+        ]);
+        assert_eq!(parse("ab(cd|ef)").unwrap(), ast);
+
+        // Error
+        assert_eq!(parse("(ab"), Result::Err(ParseError::UnclosedParenthesis));
+        assert_eq!(parse("ab)"), Result::Err(ParseError::UnexpectedParenthesis));
+        assert_eq!(parse("("), Result::Err(ParseError::UnclosedParenthesis));
+        assert_eq!(parse(")"), Result::Err(ParseError::UnexpectedParenthesis));
+
+        // Empty expression
+        assert_eq!(parse("()"), Result::Err(ParseError::Empty));
     }
 }
