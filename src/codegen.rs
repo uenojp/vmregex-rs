@@ -32,14 +32,20 @@ enum GenerateCodeError {
 
 #[derive(Debug, Default)]
 struct CodeGenerator {
+    // pc always points to the next instruction generated. In other words, it is always `instructions.len() == pc`.
     pc: Pc,
     instractions: Vec<Instruction>,
 }
 
 impl CodeGenerator {
     fn generate_code(mut self, ast: Ast) -> Result<Vec<Instruction>, GenerateCodeError> {
+        assert_eq!(self.instractions.len(), self.pc.0);
+
         self.expr(ast)?;
+        self.pc.inc()?;
         self.instractions.push(Instruction::Match);
+        assert_eq!(self.instractions.len(), self.pc.0);
+
         Ok(self.instractions)
     }
 
@@ -107,7 +113,7 @@ impl CodeGenerator {
             *l2 = self.pc;
         } else {
             unreachable!(
-                "instruction at PC {} should be Instruction::Split",
+                "Expected an Instruction::Split at PC {}, but found a different instruction",
                 split_pc.0
             );
         }
@@ -119,7 +125,10 @@ impl CodeGenerator {
         if let Some(Instruction::Jmp(l3)) = self.instractions.get_mut(jmp_pc.0) {
             *l3 = self.pc;
         } else {
-            unreachable!("instruction at PC {} should be Instruction::Jmp", jmp_pc.0);
+            unreachable!(
+                "Expected an Instruction::Jmp at PC {}, but found a different instruction",
+                jmp_pc.0
+            );
         }
 
         Ok(())
@@ -146,7 +155,7 @@ impl CodeGenerator {
             *l2 = self.pc;
         } else {
             unreachable!(
-                "instruction at PC {} should be Instruction::Split",
+                "Expected an Instruction::Split at PC {}, but found a different instruction",
                 split_pc.0
             );
         }
@@ -179,7 +188,10 @@ impl CodeGenerator {
         if let Some(Instruction::Split(_, l3)) = self.instractions.get_mut(l1.0) {
             *l3 = self.pc;
         } else {
-            unreachable!("instruction at PC {} should be Instruction::Split", l1.0);
+            unreachable!(
+                "Expected an Instruction::Split at PC {}, but found a different instruction",
+                l1.0
+            );
         }
 
         Ok(())
