@@ -34,19 +34,19 @@ enum GenerateCodeError {
 struct CodeGenerator {
     // pc always points to the next instruction generated. In other words, it is always `instructions.len() == pc`.
     pc: Pc,
-    instractions: Vec<Instruction>,
+    instructions: Vec<Instruction>,
 }
 
 impl CodeGenerator {
     fn generate_code(mut self, ast: Ast) -> Result<Vec<Instruction>, GenerateCodeError> {
-        assert_eq!(self.instractions.len(), self.pc.0);
+        assert_eq!(self.instructions.len(), self.pc.0);
 
         self.expr(ast)?;
         self.pc.inc()?;
-        self.instractions.push(Instruction::Match);
-        assert_eq!(self.instractions.len(), self.pc.0);
+        self.instructions.push(Instruction::Match);
+        assert_eq!(self.instructions.len(), self.pc.0);
 
-        Ok(self.instractions)
+        Ok(self.instructions)
     }
 
     fn expr(&mut self, ast: Ast) -> Result<(), GenerateCodeError> {
@@ -63,7 +63,7 @@ impl CodeGenerator {
 
     /// Generate char instruction.
     fn char(&mut self, c: char) -> Result<(), GenerateCodeError> {
-        self.instractions.push(Instruction::Char(c));
+        self.instructions.push(Instruction::Char(c));
         self.pc.inc()?;
         Ok(())
     }
@@ -93,23 +93,23 @@ impl CodeGenerator {
     /// L3:
     /// ```
     fn or(&mut self, lhs: Ast, rhs: Ast) -> Result<(), GenerateCodeError> {
-        assert_eq!(self.instractions.len(), self.pc.0);
+        assert_eq!(self.instructions.len(), self.pc.0);
 
         let split_pc = self.pc;
         // split L1, L2
         let l1 = self.pc.inc()?;
-        self.instractions.push(Instruction::Split(l1, Pc(0))); // L2 TBD.
-        assert_eq!(self.instractions.len(), self.pc.0);
+        self.instructions.push(Instruction::Split(l1, Pc(0))); // L2 TBD.
+        assert_eq!(self.instructions.len(), self.pc.0);
 
         // e1
         self.expr(lhs)?;
         // jmp L3
         let jmp_pc = self.pc;
         self.pc.inc()?;
-        self.instractions.push(Instruction::Jmp(Pc(0))); // L3 TBD.
-        assert_eq!(self.instractions.len(), self.pc.0);
+        self.instructions.push(Instruction::Jmp(Pc(0))); // L3 TBD.
+        assert_eq!(self.instructions.len(), self.pc.0);
 
-        if let Some(Instruction::Split(_, l2)) = self.instractions.get_mut(split_pc.0) {
+        if let Some(Instruction::Split(_, l2)) = self.instructions.get_mut(split_pc.0) {
             *l2 = self.pc;
         } else {
             unreachable!(
@@ -120,9 +120,9 @@ impl CodeGenerator {
 
         // e2
         self.expr(rhs)?;
-        assert_eq!(self.instractions.len(), self.pc.0);
+        assert_eq!(self.instructions.len(), self.pc.0);
 
-        if let Some(Instruction::Jmp(l3)) = self.instractions.get_mut(jmp_pc.0) {
+        if let Some(Instruction::Jmp(l3)) = self.instructions.get_mut(jmp_pc.0) {
             *l3 = self.pc;
         } else {
             unreachable!(
@@ -143,15 +143,15 @@ impl CodeGenerator {
     /// L2:
     /// ```
     fn question(&mut self, e: Ast) -> Result<(), GenerateCodeError> {
-        assert_eq!(self.instractions.len(), self.pc.0);
+        assert_eq!(self.instructions.len(), self.pc.0);
 
         let split_pc = self.pc;
         let l1 = self.pc.inc()?;
-        self.instractions.push(Instruction::Split(l1, Pc(0))); // L2 TBD.
+        self.instructions.push(Instruction::Split(l1, Pc(0))); // L2 TBD.
         self.expr(e)?;
-        assert_eq!(self.instractions.len(), self.pc.0);
+        assert_eq!(self.instructions.len(), self.pc.0);
 
-        if let Some(Instruction::Split(_, l2)) = self.instractions.get_mut(split_pc.0) {
+        if let Some(Instruction::Split(_, l2)) = self.instructions.get_mut(split_pc.0) {
             *l2 = self.pc;
         } else {
             unreachable!(
@@ -173,19 +173,19 @@ impl CodeGenerator {
     /// L3:
     /// ```
     fn star(&mut self, e: Ast) -> Result<(), GenerateCodeError> {
-        assert_eq!(self.instractions.len(), self.pc.0);
+        assert_eq!(self.instructions.len(), self.pc.0);
 
         let l1 = self.pc;
         let l2 = self.pc.inc()?;
-        self.instractions.push(Instruction::Split(l2, Pc(0))); // L3 TBD
+        self.instructions.push(Instruction::Split(l2, Pc(0))); // L3 TBD
         self.expr(e)?;
-        assert_eq!(self.instractions.len(), self.pc.0);
+        assert_eq!(self.instructions.len(), self.pc.0);
 
         self.pc.inc()?;
-        self.instractions.push(Instruction::Jmp(l1));
-        assert_eq!(self.instractions.len(), self.pc.0);
+        self.instructions.push(Instruction::Jmp(l1));
+        assert_eq!(self.instructions.len(), self.pc.0);
 
-        if let Some(Instruction::Split(_, l3)) = self.instractions.get_mut(l1.0) {
+        if let Some(Instruction::Split(_, l3)) = self.instructions.get_mut(l1.0) {
             *l3 = self.pc;
         } else {
             unreachable!(
@@ -206,15 +206,15 @@ impl CodeGenerator {
     /// L2:
     /// ```
     fn plus(&mut self, e: Ast) -> Result<(), GenerateCodeError> {
-        assert_eq!(self.instractions.len(), self.pc.0);
+        assert_eq!(self.instructions.len(), self.pc.0);
 
         let l1 = self.pc;
         self.expr(e)?;
-        assert_eq!(self.instractions.len(), self.pc.0);
+        assert_eq!(self.instructions.len(), self.pc.0);
 
         let l2 = self.pc.inc()?;
-        self.instractions.push(Instruction::Split(l1, l2));
-        assert_eq!(self.instractions.len(), self.pc.0);
+        self.instructions.push(Instruction::Split(l1, l2));
+        assert_eq!(self.instructions.len(), self.pc.0);
 
         Ok(())
     }
