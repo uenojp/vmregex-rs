@@ -1,23 +1,24 @@
-use thiserror::Error;
-
 use crate::parser::Ast;
 
+use thiserror::Error;
+
+/// Instruction set for the virtual machine.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-struct Pc(usize);
+pub struct Pc(pub usize);
 
 impl Pc {
-    fn inc(&mut self) -> Result<Self, GenerateCodeError> {
+    pub fn inc<E>(&mut self, err: impl Fn() -> E) -> Result<Self, E> {
         if let Some(new) = self.0.checked_add(1) {
             self.0 = new;
             Ok(*self)
         } else {
-            Err(GenerateCodeError::PcOverflow)
+            Err(err())
         }
     }
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum Instruction {
+pub enum Instruction {
     Char(char),
     Match,
     Jmp(Pc),
@@ -25,24 +26,24 @@ enum Instruction {
 }
 
 #[derive(Error, Debug)]
-enum GenerateCodeError {
+pub enum GenerateCodeError {
     #[error("program counter overflow occured")]
     PcOverflow,
 }
 
 #[derive(Debug, Default)]
-struct CodeGenerator {
+pub struct CodeGenerator {
     // pc always points to the next instruction generated. In other words, it is always `instructions.len() == pc`.
     pc: Pc,
     instructions: Vec<Instruction>,
 }
 
 impl CodeGenerator {
-    fn generate_code(mut self, ast: Ast) -> Result<Vec<Instruction>, GenerateCodeError> {
+    pub fn generate_code(mut self, ast: Ast) -> Result<Vec<Instruction>, GenerateCodeError> {
         assert_eq!(self.instructions.len(), self.pc.0);
 
         self.expr(ast)?;
-        self.pc.inc()?;
+        self.pc.inc(|| GenerateCodeError::PcOverflow)?;
         self.instructions.push(Instruction::Match);
         assert_eq!(self.instructions.len(), self.pc.0);
 
@@ -64,7 +65,7 @@ impl CodeGenerator {
     /// Generate char instruction.
     fn char(&mut self, c: char) -> Result<(), GenerateCodeError> {
         self.instructions.push(Instruction::Char(c));
-        self.pc.inc()?;
+        self.pc.inc(|| GenerateCodeError::PcOverflow)?;
         Ok(())
     }
 
@@ -97,7 +98,7 @@ impl CodeGenerator {
 
         let split_pc = self.pc;
         // split L1, L2
-        let l1 = self.pc.inc()?;
+        let l1 = self.pc.inc(|| GenerateCodeError::PcOverflow)?;
         self.instructions.push(Instruction::Split(l1, Pc(0))); // L2 TBD.
         assert_eq!(self.instructions.len(), self.pc.0);
 
@@ -105,7 +106,7 @@ impl CodeGenerator {
         self.expr(lhs)?;
         // jmp L3
         let jmp_pc = self.pc;
-        self.pc.inc()?;
+        self.pc.inc(|| GenerateCodeError::PcOverflow)?;
         self.instructions.push(Instruction::Jmp(Pc(0))); // L3 TBD.
         assert_eq!(self.instructions.len(), self.pc.0);
 
@@ -146,7 +147,7 @@ impl CodeGenerator {
         assert_eq!(self.instructions.len(), self.pc.0);
 
         let split_pc = self.pc;
-        let l1 = self.pc.inc()?;
+        let l1 = self.pc.inc(|| GenerateCodeError::PcOverflow)?;
         self.instructions.push(Instruction::Split(l1, Pc(0))); // L2 TBD.
         self.expr(e)?;
         assert_eq!(self.instructions.len(), self.pc.0);
@@ -176,12 +177,12 @@ impl CodeGenerator {
         assert_eq!(self.instructions.len(), self.pc.0);
 
         let l1 = self.pc;
-        let l2 = self.pc.inc()?;
+        let l2 = self.pc.inc(|| GenerateCodeError::PcOverflow)?;
         self.instructions.push(Instruction::Split(l2, Pc(0))); // L3 TBD
         self.expr(e)?;
         assert_eq!(self.instructions.len(), self.pc.0);
 
-        self.pc.inc()?;
+        self.pc.inc(|| GenerateCodeError::PcOverflow)?;
         self.instructions.push(Instruction::Jmp(l1));
         assert_eq!(self.instructions.len(), self.pc.0);
 
@@ -212,7 +213,7 @@ impl CodeGenerator {
         self.expr(e)?;
         assert_eq!(self.instructions.len(), self.pc.0);
 
-        let l2 = self.pc.inc()?;
+        let l2 = self.pc.inc(|| GenerateCodeError::PcOverflow)?;
         self.instructions.push(Instruction::Split(l1, l2));
         assert_eq!(self.instructions.len(), self.pc.0);
 
