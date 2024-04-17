@@ -32,14 +32,14 @@ pub enum GenerateCodeError {
 }
 
 #[derive(Debug, Default)]
-pub struct CodeGenerator {
+struct CodeGenerator {
     // pc always points to the next instruction generated. In other words, it is always `instructions.len() == pc`.
     pc: Pc,
     instructions: Vec<Instruction>,
 }
 
 impl CodeGenerator {
-    pub fn generate_code(mut self, ast: Ast) -> Result<Vec<Instruction>, GenerateCodeError> {
+    fn generate_code(mut self, ast: Ast) -> Result<Vec<Instruction>, GenerateCodeError> {
         assert_eq!(self.instructions.len(), self.pc.0);
 
         self.expr(ast)?;
@@ -219,6 +219,11 @@ impl CodeGenerator {
 
         Ok(())
     }
+}
+
+/// Generate code for the given AST.
+pub fn generate_code(ast: Ast) -> Result<Vec<Instruction>, GenerateCodeError> {
+    CodeGenerator::default().generate_code(ast)
 }
 
 #[cfg(test)]

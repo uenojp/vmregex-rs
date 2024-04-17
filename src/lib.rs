@@ -13,13 +13,13 @@ use thiserror::Error;
 /// # Example
 /// ```
 /// use vmregex::Regex;
-/// 
+///
 /// let re = Regex::new("a(b|c)*d+").unwrap();
-/// assert!(re.is_match("abbd").unwrap());
-/// assert!(re.is_match("acd").unwrap());
-/// assert!(re.is_match("abcbcd").unwrap());
+/// assert!(re.is_match("ad").unwrap());
+/// assert!(re.is_match("abbbbd").unwrap());
+/// assert!(re.is_match("abcbcbcd").unwrap());
 /// assert!(re.is_match("add").unwrap());
-/// assert!(!re.is_match("abce").unwrap());
+/// assert!(!re.is_match("aaa").unwrap());
 /// ```
 pub struct Regex {
     machine: Machine,
@@ -37,7 +37,7 @@ impl Regex {
     /// Compile a regular expression.
     pub fn new(pattern: &str) -> Result<Self, SyntaxError> {
         let ast = parser::parse(pattern)?;
-        let instructions = codegen::CodeGenerator::default().generate_code(ast)?;
+        let instructions = codegen::generate_code(ast)?;
         let machine = Machine::new(instructions);
         Ok(Self { machine })
     }
