@@ -72,6 +72,15 @@ impl Machine {
                         return Ok(false);
                     }
                 }
+                Instruction::AnyByte => {
+                    // The dot matches any character, but does not usually match an empty character.
+                    if text.get(sp.0).is_some() {
+                        pc.inc(|| MatchError::PcOverflow)?;
+                        sp.inc(|| MatchError::SpOverflow)?;
+                    } else {
+                        return Ok(false);
+                    }
+                }
             }
         }
     }
@@ -170,6 +179,31 @@ mod test {
         assert!(machine.is_match(chars!("aaab")).unwrap());
         assert!(!machine.is_match(chars!("b")).unwrap());
         assert!(!machine.is_match(chars!("xb")).unwrap());
+        assert!(!machine.is_match(chars!("")).unwrap());
+    }
+
+    #[test]
+    fn dot() {
+        // .
+        let machine = Machine::new(vec![
+            /*   :0 */ Instruction::AnyByte,
+            /*   :1 */ Instruction::Match,
+        ]);
+        assert!(machine.is_match(chars!("a")).unwrap());
+        assert!(machine.is_match(chars!("b")).unwrap());
+        assert!(machine.is_match(chars!("abc")).unwrap());
+        assert!(!machine.is_match(chars!("")).unwrap());
+
+        // a.b
+        let machine = Machine::new(vec![
+            /*   :0 */ Instruction::Char('a'),
+            /*   :1 */ Instruction::AnyByte,
+            /*   :2 */ Instruction::Char('b'),
+            /*   :3 */ Instruction::Match,
+        ]);
+        assert!(machine.is_match(chars!("axb")).unwrap());
+        assert!(machine.is_match(chars!("ayb")).unwrap());
+        assert!(!machine.is_match(chars!("ab")).unwrap());
         assert!(!machine.is_match(chars!("")).unwrap());
     }
 }

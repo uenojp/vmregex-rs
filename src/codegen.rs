@@ -23,6 +23,7 @@ pub enum Instruction {
     Match,
     Jmp(Pc),
     Split(Pc, Pc),
+    AnyByte,
 }
 
 #[derive(Error, Debug)]
@@ -58,6 +59,7 @@ impl CodeGenerator {
             Ast::Question(e) => self.question(*e)?,
             Ast::Star(e) => self.star(*e)?,
             Ast::Plus(e) => self.plus(*e)?,
+            Ast::Dot => self.dot()?,
         };
         Ok(())
     }
@@ -219,6 +221,22 @@ impl CodeGenerator {
 
         Ok(())
     }
+
+    /// Generate code for Dot operator.
+    ///
+    /// .
+    /// ```txt
+    ///    any_byte
+    /// ```
+    fn dot(&mut self) -> Result<(), GenerateCodeError> {
+        assert_eq!(self.instructions.len(), self.pc.0);
+
+        self.instructions.push(Instruction::AnyByte);
+        self.pc.inc(|| GenerateCodeError::PcOverflow)?;
+        assert_eq!(self.instructions.len(), self.pc.0);
+
+        Ok(())
+    }
 }
 
 /// Generate code for the given AST.
@@ -341,6 +359,30 @@ mod test {
                 /*   :1 */ Instruction::Split(Pc(0), Pc(2)), // L1, L2
                 /* L2:2 */ Instruction::Char('b'),
                 /*   :3 */ Instruction::Match,
+            ]
+        );
+    }
+
+    #[test]
+    fn dot() {
+        // .
+        let gen = CodeGenerator::default();
+        let ast = Ast::Dot;
+        assert_eq!(
+            gen.generate_code(ast).unwrap(),
+            vec![Instruction::AnyByte, Instruction::Match]
+        );
+
+        // a.b
+        let gen = CodeGenerator::default();
+        let ast = Ast::Concat(vec![Ast::Char('a'), Ast::Dot, Ast::Char('b')]);
+        assert_eq!(
+            gen.generate_code(ast).unwrap(),
+            vec![
+                Instruction::Char('a'),
+                Instruction::AnyByte,
+                Instruction::Char('b'),
+                Instruction::Match,
             ]
         );
     }

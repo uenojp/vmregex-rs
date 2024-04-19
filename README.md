@@ -4,12 +4,13 @@
 ```rust
 use vmregex::Regex;
 
-let re = Regex::new("a(b|c)*d+").unwrap();
-assert!(re.is_match("ad").unwrap());
-assert!(re.is_match("abbbbd").unwrap());
-assert!(re.is_match("abcbcbcd").unwrap());
-assert!(re.is_match("add").unwrap());
-assert!(!re.is_match("aaa").unwrap());
+let re = Regex::new("Hel+o (Wo*rld|R.+st)!?").unwrap();
+assert!(re.is_match("Hello World!").unwrap());
+assert!(re.is_match("Helllllo Wrld").unwrap());
+assert!(re.is_match("Hello Rust").unwrap());
+assert!(re.is_match("Helllllo Rxxxxxxst").unwrap());
+assert!(!re.is_match("Heo World!").unwrap());
+assert!(!re.is_match("Hello Rst!").unwrap());
 ```
 
 ## Operation
@@ -18,6 +19,7 @@ assert!(!re.is_match("aaa").unwrap());
 - Question
 - Star
 - Plus
+- Dot
 
 ## Reference
 - https://github.com/ytakano/rust_zero

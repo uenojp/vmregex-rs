@@ -10,6 +10,7 @@ pub enum Ast {
     Question(Box<Ast>),
     Star(Box<Ast>),
     Plus(Box<Ast>),
+    Dot,
 }
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -101,6 +102,7 @@ pub fn parse(pattern: &str) -> Result<Ast, ParseError> {
             '?' => quantifier!(Ast::Question),
             '*' => quantifier!(Ast::Star),
             '+' => quantifier!(Ast::Plus),
+            '.' => ctx.concat.push(Ast::Dot),
             '(' => {
                 // Epilogue: push the current context.
                 let prev = (mem::take(&mut ctx.concat), mem::take(&mut ctx.concat_or));
@@ -242,5 +244,20 @@ mod test {
         // Error
         assert_eq!(parse("?"), Err(ParseError::MissingOperand));
         assert_eq!(parse("?abc"), Err(ParseError::MissingOperand));
+    }
+
+    #[test]
+    fn dot() {
+        let ast = Ast::Dot;
+        assert_eq!(parse(".").unwrap(), ast);
+
+        let ast = Ast::Concat(vec![Ast::Char('a'), Ast::Dot]);
+        assert_eq!(parse("a.").unwrap(), ast);
+
+        let ast = Ast::Concat(vec![Ast::Dot, Ast::Char('b')]);
+        assert_eq!(parse(".b").unwrap(), ast);
+
+        let ast = Ast::Concat(vec![Ast::Char('a'), Ast::Dot, Ast::Char('b')]);
+        assert_eq!(parse("a.b").unwrap(), ast);
     }
 }
