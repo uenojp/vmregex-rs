@@ -11,6 +11,9 @@ thiserror = "1.0.58"
 [dev-dependencies]
 criterion = "0.5.1"
 
+anyhow = "1.0.82"
+clap = { version = "4.5.4", features = ["derive"] }
+
 [[bench]]
 name = "benchmark"
 harness = false
